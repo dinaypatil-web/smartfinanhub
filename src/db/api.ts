@@ -2,7 +2,6 @@ import { supabase } from './supabase';
 import type {
   Profile,
   Account,
-  LoanAccountWithCalculations,
   InterestRateHistory,
   Transaction,
   Budget,
@@ -10,13 +9,8 @@ import type {
   EMITransaction,
   LoanEMIPayment,
   AccountWithInterestHistory,
-  TransactionWithAccounts,
   FinancialSummary,
-  BudgetAnalysis,
-  CustomBankLink,
-  IncomeCategoryKey,
-  BankLink,
-  UserCustomBankLink
+  BudgetAnalysis
 } from '@/types/types';
 
 export const profileApi = {
@@ -26,7 +20,7 @@ export const profileApi = {
       .select('*')
       .eq('id', userId)
       .maybeSingle();
-    
+
     if (error) throw error;
     return data;
   },
@@ -38,7 +32,7 @@ export const profileApi = {
       .eq('id', userId)
       .select()
       .maybeSingle();
-    
+
     if (error) throw error;
     if (!data) throw new Error('Profile not found');
     return data;
@@ -50,7 +44,7 @@ export const profileApi = {
       .select('*')
       .eq('phone', phoneNumber)
       .maybeSingle();
-    
+
     if (error) throw error;
     return data;
   },
@@ -60,7 +54,7 @@ export const profileApi = {
       .from('profiles')
       .select('*')
       .order('created_at', { ascending: false });
-    
+
     if (error) throw error;
     return Array.isArray(data) ? data : [];
   }
@@ -73,7 +67,7 @@ export const accountApi = {
       .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
-    
+
     if (error) throw error;
     return Array.isArray(data) ? data : [];
   },
@@ -84,7 +78,7 @@ export const accountApi = {
       .select('*')
       .eq('id', accountId)
       .maybeSingle();
-    
+
     if (error) throw error;
     return data;
   },
@@ -95,7 +89,7 @@ export const accountApi = {
       .select('*')
       .eq('id', accountId)
       .maybeSingle();
-    
+
     if (accountError) throw accountError;
     if (!account) return null;
 
@@ -104,7 +98,7 @@ export const accountApi = {
       .select('*')
       .eq('account_id', accountId)
       .order('effective_date', { ascending: false });
-    
+
     if (historyError) throw historyError;
 
     return {
@@ -119,16 +113,16 @@ export const accountApi = {
       balance: account.balance || 0,
       currency: account.currency || 'INR'
     };
-    
+
     const { data, error } = await supabase
       .from('accounts')
       .insert(accountData)
       .select()
       .maybeSingle();
-    
+
     if (error) throw error;
     if (!data) throw new Error('Failed to create account');
-    
+
     return data;
   },
 
@@ -137,17 +131,17 @@ export const accountApi = {
       ...updates,
       updated_at: new Date().toISOString()
     };
-    
+
     const { data, error } = await supabase
       .from('accounts')
       .update(updateData)
       .eq('id', accountId)
       .select()
       .maybeSingle();
-    
+
     if (error) throw error;
     if (!data) throw new Error('Account not found');
-    
+
     return data;
   },
 
@@ -156,28 +150,28 @@ export const accountApi = {
       .from('accounts')
       .delete()
       .eq('id', accountId);
-    
+
     if (error) throw error;
   },
 
   async getFinancialSummary(userId: string): Promise<FinancialSummary> {
     const accounts = await this.getAccounts(userId);
-    
+
     const cashAccounts = accounts.filter(a => a.account_type === 'cash');
     const bankAccounts = accounts.filter(a => a.account_type === 'bank');
     const creditCards = accounts.filter(a => a.account_type === 'credit_card');
     const loanAccounts = accounts.filter(a => a.account_type === 'loan');
-    
+
     const cash_total = cashAccounts.reduce((sum, acc) => sum + Number(acc.balance), 0);
     const bank_total = bankAccounts.reduce((sum, acc) => sum + Number(acc.balance), 0);
     const total_assets = cash_total + bank_total;
-    
+
     // Credit card balances are negative (debt), so we need to negate them to get positive liability amount
     const total_liabilities = Math.abs(creditCards.reduce((sum, acc) => sum + Number(acc.balance), 0));
-    
+
     const liquid_assets = total_assets;
     const working_capital = total_assets - total_liabilities;
-    
+
     return {
       total_assets,
       total_liabilities,
@@ -195,7 +189,7 @@ export const accountApi = {
   async getLoanWithCalculations(accountId: string): Promise<any> {
     const { data, error } = await supabase
       .rpc('get_loan_details_with_calculations', { p_account_id: accountId });
-    
+
     if (error) throw error;
     return Array.isArray(data) && data.length > 0 ? data[0] : null;
   },
@@ -207,7 +201,7 @@ export const accountApi = {
         p_annual_rate: annualRate,
         p_tenure_months: tenureMonths
       });
-    
+
     if (error) throw error;
     return data || 0;
   },
@@ -215,7 +209,7 @@ export const accountApi = {
   async calculateLoanAccruedInterest(accountId: string): Promise<number> {
     const { data, error } = await supabase
       .rpc('calculate_loan_accrued_interest', { p_account_id: accountId });
-    
+
     if (error) throw error;
     return data || 0;
   }
@@ -227,13 +221,13 @@ export const interestRateApi = {
       .from('interest_rate_history')
       .select('*, accounts!inner(user_id)')
       .order('effective_date', { ascending: false });
-    
+
     if (userId) {
       query = query.eq('accounts.user_id', userId);
     }
-    
+
     const { data, error } = await query;
-    
+
     if (error) throw error;
     return Array.isArray(data) ? data : [];
   },
@@ -244,7 +238,7 @@ export const interestRateApi = {
       .select('*')
       .eq('account_id', accountId)
       .order('effective_date', { ascending: false });
-    
+
     if (error) throw error;
     return Array.isArray(data) ? data : [];
   },
@@ -255,7 +249,7 @@ export const interestRateApi = {
       .insert(rate)
       .select()
       .maybeSingle();
-    
+
     if (error) throw error;
     if (!data) throw new Error('Failed to add interest rate');
     return data;
@@ -270,7 +264,7 @@ export const interestRateApi = {
       .from('interest_rate_history')
       .delete()
       .eq('id', rateId);
-    
+
     if (error) throw error;
   }
 };
@@ -283,13 +277,13 @@ export const transactionApi = {
       .eq('user_id', userId)
       .order('transaction_date', { ascending: false })
       .order('created_at', { ascending: false });
-    
+
     if (limit) {
       query = query.limit(limit);
     }
-    
+
     const { data, error } = await query;
-    
+
     if (error) throw error;
     return Array.isArray(data) ? data : [];
   },
@@ -302,10 +296,10 @@ export const transactionApi = {
       .gte('transaction_date', startDate)
       .lte('transaction_date', endDate)
       .order('transaction_date', { ascending: false });
-    
+
     if (error) throw error;
     const transactions = Array.isArray(data) ? data : [];
-    
+
     return transactions;
   },
 
@@ -316,10 +310,10 @@ export const transactionApi = {
       .eq('user_id', userId)
       .eq('category', category)
       .order('transaction_date', { ascending: false });
-    
+
     if (error) throw error;
     const transactions = Array.isArray(data) ? data : [];
-    
+
     return transactions;
   },
 
@@ -330,10 +324,10 @@ export const transactionApi = {
       .eq('user_id', userId)
       .eq('account_id', accountId)
       .order('transaction_date', { ascending: false });
-    
+
     if (error) throw error;
     const transactions = Array.isArray(data) ? data : [];
-    
+
     return transactions;
   },
 
@@ -342,18 +336,18 @@ export const transactionApi = {
       ...transaction,
       currency: transaction.currency || 'INR'
     };
-    
+
     const { data, error } = await supabase
       .from('transactions')
       .insert(transactionData)
       .select()
       .maybeSingle();
-    
+
     if (error) throw error;
     if (!data) throw new Error('Failed to create transaction');
 
     await this.updateAccountBalances(transaction);
-    
+
     return data;
   },
 
@@ -363,19 +357,19 @@ export const transactionApi = {
       .select('*')
       .eq('id', transactionId)
       .maybeSingle();
-    
+
     const updateData = {
       ...updates,
       updated_at: new Date().toISOString()
     };
-    
+
     const { data, error } = await supabase
       .from('transactions')
       .update(updateData)
       .eq('id', transactionId)
       .select()
       .maybeSingle();
-    
+
     if (error) throw error;
     if (!data) throw new Error('Transaction not found');
 
@@ -383,7 +377,7 @@ export const transactionApi = {
       await this.reverseAccountBalances(oldTransaction);
       await this.updateAccountBalances(data);
     }
-    
+
     return data;
   },
 
@@ -398,7 +392,7 @@ export const transactionApi = {
       .from('transactions')
       .delete()
       .eq('id', transactionId);
-    
+
     if (error) throw error;
 
     if (transaction) {
@@ -415,7 +409,7 @@ export const transactionApi = {
           await this.adjustBalance(transaction.to_account_id, amount);
         }
         break;
-      
+
       case 'expense':
         if (transaction.from_account_id) {
           const account = await accountApi.getAccountById(transaction.from_account_id);
@@ -428,7 +422,7 @@ export const transactionApi = {
           }
         }
         break;
-      
+
       case 'withdrawal':
         // Deduct from source account (bank/credit card)
         if (transaction.from_account_id) {
@@ -446,7 +440,7 @@ export const transactionApi = {
           await this.adjustBalance(transaction.to_account_id, amount);
         }
         break;
-      
+
       case 'transfer':
         if (transaction.from_account_id) {
           const fromAccount = await accountApi.getAccountById(transaction.from_account_id);
@@ -469,7 +463,7 @@ export const transactionApi = {
           }
         }
         break;
-      
+
       case 'loan_payment':
         if (transaction.from_account_id) {
           await this.adjustBalance(transaction.from_account_id, -amount);
@@ -478,7 +472,7 @@ export const transactionApi = {
           await this.adjustBalance(transaction.to_account_id, -amount);
         }
         break;
-      
+
       case 'credit_card_repayment':
         // FROM account (bank/cash): decrease balance
         if (transaction.from_account_id) {
@@ -501,7 +495,7 @@ export const transactionApi = {
           await this.adjustBalance(transaction.to_account_id, -amount);
         }
         break;
-      
+
       case 'expense':
         if (transaction.from_account_id) {
           const account = await accountApi.getAccountById(transaction.from_account_id);
@@ -514,7 +508,7 @@ export const transactionApi = {
           }
         }
         break;
-      
+
       case 'withdrawal':
         // Reverse: Add back to source account (bank/credit card)
         if (transaction.from_account_id) {
@@ -532,7 +526,7 @@ export const transactionApi = {
           await this.adjustBalance(transaction.to_account_id, -amount);
         }
         break;
-      
+
       case 'transfer':
         if (transaction.from_account_id) {
           const fromAccount = await accountApi.getAccountById(transaction.from_account_id);
@@ -555,7 +549,7 @@ export const transactionApi = {
           }
         }
         break;
-      
+
       case 'loan_payment':
         if (transaction.from_account_id) {
           await this.adjustBalance(transaction.from_account_id, amount);
@@ -564,7 +558,7 @@ export const transactionApi = {
           await this.adjustBalance(transaction.to_account_id, amount);
         }
         break;
-      
+
       case 'credit_card_repayment':
         // Reverse: FROM account (bank/cash): increase balance
         if (transaction.from_account_id) {
@@ -596,7 +590,7 @@ export const budgetApi = {
       .eq('month', month)
       .eq('year', year)
       .maybeSingle();
-    
+
     if (error) throw error;
     return data;
   },
@@ -608,7 +602,7 @@ export const budgetApi = {
       .eq('user_id', userId)
       .order('year', { ascending: false })
       .order('month', { ascending: false });
-    
+
     if (error) throw error;
     return Array.isArray(data) ? data : [];
   },
@@ -623,7 +617,7 @@ export const budgetApi = {
         .eq('id', existing.id)
         .select()
         .maybeSingle();
-      
+
       if (error) throw error;
       if (!data) throw new Error('Failed to update budget');
       return data;
@@ -640,7 +634,7 @@ export const budgetApi = {
         })
         .select()
         .maybeSingle();
-      
+
       if (error) throw error;
       if (!data) throw new Error('Failed to create budget');
       return data;
@@ -652,7 +646,7 @@ export const budgetApi = {
       .from('budgets')
       .delete()
       .eq('id', budgetId);
-    
+
     if (error) throw error;
   },
 
@@ -679,15 +673,15 @@ export const budgetApi = {
     const categoryMap = new Map(categories.map(c => [c.id, c.name]));
 
     const category_analysis: Record<string, { budgeted: number; actual: number; variance: number }> = {};
-    
+
     for (const [categoryId, budgeted] of Object.entries(budget.category_budgets)) {
       const categoryName = categoryMap.get(categoryId);
       if (!categoryName) continue;
-      
+
       const actual = transactions
         .filter(t => t.category === categoryName && (t.transaction_type === 'expense' || t.transaction_type === 'loan_payment'))
         .reduce((sum, t) => sum + Number(t.amount), 0);
-      
+
       category_analysis[categoryId] = {
         budgeted: Number(budgeted),
         actual,
@@ -706,10 +700,10 @@ export const budgetApi = {
     // Calculate actual income by category from transactions
     const incomeTransactions = transactions.filter(t => t.transaction_type === 'income');
     const actualIncomeByCategory: Record<string, number> = {};
-    
+
     for (const transaction of incomeTransactions) {
       if (transaction.income_category) {
-        actualIncomeByCategory[transaction.income_category] = 
+        actualIncomeByCategory[transaction.income_category] =
           (actualIncomeByCategory[transaction.income_category] || 0) + Number(transaction.amount);
       }
     }
@@ -722,21 +716,21 @@ export const budgetApi = {
     if (budget.income_category_budgets) {
       const incomeBudgets = budget.income_category_budgets as Record<IncomeCategoryKey, number>;
       const totalBudgetedIncome = Object.values(incomeBudgets).reduce((sum: number, val) => sum + Number(val), 0);
-      
+
       for (const [categoryKey, budgeted] of Object.entries(incomeBudgets)) {
         if (categoryKey in income_category_analysis) {
           const key = categoryKey as IncomeCategoryKey;
           const budgetedAmount = Number(budgeted);
-          
+
           // Use actual categorized income if available
           let actual = actualIncomeByCategory[key] || 0;
-          
+
           // Distribute uncategorized income proportionally if there's any
           if (uncategorizedIncome > 0 && totalBudgetedIncome > 0) {
             const proportion = budgetedAmount / totalBudgetedIncome;
             actual += uncategorizedIncome * proportion;
           }
-          
+
           income_category_analysis[key] = {
             budgeted: budgetedAmount,
             actual,
@@ -800,9 +794,9 @@ export const categoryApi = {
     } else {
       query = query.eq('is_system', true);
     }
-    
+
     const { data, error } = await query;
-    
+
     if (error) throw error;
     return Array.isArray(data) ? data : [];
   },
@@ -818,7 +812,7 @@ export const categoryApi = {
       })
       .select()
       .maybeSingle();
-    
+
     if (error) throw error;
     if (!data) throw new Error('Failed to create category');
     return data;
@@ -829,7 +823,7 @@ export const categoryApi = {
       .from('expense_categories')
       .delete()
       .eq('id', categoryId);
-    
+
     if (error) throw error;
   }
 };
@@ -841,7 +835,7 @@ export const emiApi = {
       .select('*')
       .eq('account_id', accountId)
       .order('created_at', { ascending: false });
-    
+
     if (error) throw error;
     return Array.isArray(data) ? data : [];
   },
@@ -853,7 +847,7 @@ export const emiApi = {
       .eq('account_id', accountId)
       .eq('status', 'active')
       .order('next_due_date', { ascending: true });
-    
+
     if (error) throw error;
     return Array.isArray(data) ? data : [];
   },
@@ -864,7 +858,7 @@ export const emiApi = {
       .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
-    
+
     if (error) throw error;
     return Array.isArray(data) ? data : [];
   },
@@ -875,7 +869,7 @@ export const emiApi = {
       .insert(emi)
       .select()
       .maybeSingle();
-    
+
     if (error) throw error;
     if (!data) throw new Error('Failed to create EMI transaction');
     return data;
@@ -888,7 +882,7 @@ export const emiApi = {
       .eq('id', id)
       .select()
       .maybeSingle();
-    
+
     if (error) throw error;
     if (!data) throw new Error('Failed to update EMI transaction');
     return data;
@@ -899,7 +893,7 @@ export const emiApi = {
       .from('emi_transactions')
       .delete()
       .eq('id', id);
-    
+
     if (error) throw error;
   },
 
@@ -909,16 +903,16 @@ export const emiApi = {
       .select('*')
       .eq('id', emiId)
       .maybeSingle();
-    
+
     if (fetchError) throw fetchError;
     if (!emi) throw new Error('EMI transaction not found');
-    
+
     const remainingInstallments = emi.remaining_installments - 1;
     const status = remainingInstallments === 0 ? 'completed' : 'active';
-    const nextDueDate = remainingInstallments > 0 
+    const nextDueDate = remainingInstallments > 0
       ? new Date(new Date(emi.next_due_date).setMonth(new Date(emi.next_due_date).getMonth() + 1)).toISOString().split('T')[0]
       : emi.next_due_date;
-    
+
     const { data, error } = await supabase
       .from('emi_transactions')
       .update({
@@ -929,7 +923,7 @@ export const emiApi = {
       .eq('id', emiId)
       .select()
       .maybeSingle();
-    
+
     if (error) throw error;
     if (!data) throw new Error('Failed to update EMI installment');
     return data;
@@ -946,13 +940,13 @@ export const loanEMIPaymentApi = {
       .from('loan_emi_payments')
       .select('*')
       .order('payment_date', { ascending: false });
-    
+
     if (userId) {
       query = query.eq('user_id', userId);
     }
-    
+
     const { data, error } = await query;
-    
+
     if (error) throw error;
     return Array.isArray(data) ? data : [];
   },
@@ -963,7 +957,7 @@ export const loanEMIPaymentApi = {
       .select('*')
       .eq('account_id', accountId)
       .order('payment_number', { ascending: true });
-    
+
     if (error) throw error;
     return Array.isArray(data) ? data : [];
   },
@@ -974,7 +968,7 @@ export const loanEMIPaymentApi = {
       .select('*')
       .eq('user_id', userId)
       .order('payment_date', { ascending: false });
-    
+
     if (error) throw error;
     return Array.isArray(data) ? data : [];
   },
@@ -985,7 +979,7 @@ export const loanEMIPaymentApi = {
       .insert(payment)
       .select()
       .maybeSingle();
-    
+
     if (error) throw error;
     if (!data) throw new Error('Failed to create loan EMI payment');
     return data;
@@ -1000,7 +994,7 @@ export const loanEMIPaymentApi = {
       .from('loan_emi_payments')
       .insert(payments)
       .select();
-    
+
     if (error) throw error;
     return Array.isArray(data) ? data : [];
   },
@@ -1012,7 +1006,7 @@ export const loanEMIPaymentApi = {
       .eq('id', id)
       .select()
       .maybeSingle();
-    
+
     if (error) throw error;
     if (!data) throw new Error('Failed to update loan EMI payment');
     return data;
@@ -1023,7 +1017,7 @@ export const loanEMIPaymentApi = {
       .from('loan_emi_payments')
       .delete()
       .eq('id', id);
-    
+
     if (error) throw error;
   },
 
@@ -1032,14 +1026,14 @@ export const loanEMIPaymentApi = {
       .from('loan_emi_payments')
       .delete()
       .eq('account_id', accountId);
-    
+
     if (error) throw error;
   },
 
   async getTotalPrincipalPaid(accountId: string): Promise<number> {
     const { data, error } = await supabase
       .rpc('get_total_principal_paid', { p_account_id: accountId });
-    
+
     if (error) throw error;
     return data || 0;
   },
@@ -1047,7 +1041,7 @@ export const loanEMIPaymentApi = {
   async getTotalInterestPaid(accountId: string): Promise<number> {
     const { data, error } = await supabase
       .rpc('get_total_interest_paid', { p_account_id: accountId });
-    
+
     if (error) throw error;
     return data || 0;
   },
@@ -1055,7 +1049,7 @@ export const loanEMIPaymentApi = {
   async getLatestOutstandingPrincipal(accountId: string): Promise<number> {
     const { data, error } = await supabase
       .rpc('get_latest_outstanding_principal', { p_account_id: accountId });
-    
+
     if (error) throw error;
     return data || 0;
   },
@@ -1063,7 +1057,7 @@ export const loanEMIPaymentApi = {
   async getNextPaymentNumber(accountId: string): Promise<number> {
     const { data, error } = await supabase
       .rpc('get_next_payment_number', { p_account_id: accountId });
-    
+
     if (error) throw error;
     return data || 1;
   }
@@ -1144,7 +1138,7 @@ export const bankLinksApi = {
       .eq('is_active', true)
       .order('country', { ascending: true })
       .order('bank_name', { ascending: true });
-    
+
     if (error) throw error;
     return Array.isArray(data) ? data : [];
   },
@@ -1156,7 +1150,7 @@ export const bankLinksApi = {
       .eq('country', country)
       .eq('is_active', true)
       .order('bank_name', { ascending: true });
-    
+
     if (error) throw error;
     return Array.isArray(data) ? data : [];
   },
@@ -1168,7 +1162,7 @@ export const bankLinksApi = {
       .ilike('bank_name', `%${searchTerm}%`)
       .eq('is_active', true)
       .order('bank_name', { ascending: true });
-    
+
     if (error) throw error;
     return Array.isArray(data) ? data : [];
   },
@@ -1179,13 +1173,13 @@ export const bankLinksApi = {
       .select('*')
       .eq('bank_name', bankName)
       .eq('is_active', true);
-    
+
     if (country) {
       query = query.eq('country', country);
     }
-    
+
     const { data, error } = await query.maybeSingle();
-    
+
     if (error) throw error;
     return data;
   },
@@ -1196,7 +1190,7 @@ export const bankLinksApi = {
       .insert(bankLink)
       .select()
       .single();
-    
+
     if (error) throw error;
     return data;
   },
@@ -1208,7 +1202,7 @@ export const bankLinksApi = {
       .eq('id', id)
       .select()
       .single();
-    
+
     if (error) throw error;
     return data;
   },
@@ -1218,7 +1212,7 @@ export const bankLinksApi = {
       .from('bank_links')
       .delete()
       .eq('id', id);
-    
+
     if (error) throw error;
   }
 };
@@ -1230,7 +1224,7 @@ export const userCustomBankLinksApi = {
       .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
-    
+
     if (error) throw error;
     return Array.isArray(data) ? data : [];
   },
@@ -1241,7 +1235,7 @@ export const userCustomBankLinksApi = {
       .select('*')
       .eq('account_id', accountId)
       .order('created_at', { ascending: false });
-    
+
     if (error) throw error;
     return Array.isArray(data) ? data : [];
   },
@@ -1252,7 +1246,7 @@ export const userCustomBankLinksApi = {
       .insert(link)
       .select()
       .single();
-    
+
     if (error) throw error;
     return data;
   },
@@ -1264,7 +1258,7 @@ export const userCustomBankLinksApi = {
       .eq('id', id)
       .select()
       .single();
-    
+
     if (error) throw error;
     return data;
   },
@@ -1274,7 +1268,7 @@ export const userCustomBankLinksApi = {
       .from('user_custom_bank_links')
       .delete()
       .eq('id', id);
-    
+
     if (error) throw error;
   }
 };
